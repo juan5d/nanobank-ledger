@@ -3,6 +3,7 @@ package com.nanobank.backend.service;
 import com.nanobank.backend.dto.TransactionRequest;
 import com.nanobank.backend.dto.TransactionResponse;
 import com.nanobank.backend.dto.TransferRequest;
+import com.nanobank.backend.dto.MoveTransactionRequest;
 import com.nanobank.backend.entity.Transaction;
 import com.nanobank.backend.entity.TransactionType;
 import com.nanobank.backend.entity.Wallet;
@@ -30,9 +31,8 @@ public class TransactionService {
     }
 
     @Transactional
-    public TransactionResponse create(TransactionRequest request) {
-        Wallet wallet = walletRepository.findById(request.walletId())
-                .orElseThrow(() -> new ResourceNotFoundException("Wallet not found: " + request.walletId()));
+    public TransactionResponse create(TransactionRequest request, String userEmail) {
+        Wallet wallet = getOwnedWalletOrThrow(request.walletId(), userEmail);
         TransactionType type = parseType(request.type());
         applyBalance(wallet, request.amount(), type);
         Transaction tx = new Transaction(request.amount(), type, request.description(),
@@ -42,11 +42,9 @@ public class TransactionService {
     }
 
     @Transactional
-    public TransactionResponse transfer(TransferRequest request) {
-        Wallet from = walletRepository.findById(request.fromWalletId())
-                .orElseThrow(() -> new ResourceNotFoundException("Source wallet not found"));
-        Wallet to = walletRepository.findById(request.toWalletId())
-                .orElseThrow(() -> new ResourceNotFoundException("Target wallet not found"));
+    public TransactionResponse transfer(TransferRequest request, String userEmail) {
+        Wallet from = getOwnedWalletOrThrow(request.fromWalletId(), userEmail);
+        Wallet to = getOwnedWalletOrThrow(request.toWalletId(), userEmail);
 
         if (from.getBalance().compareTo(request.amount()) < 0) {
             throw new InsufficientFundsException("Insufficient funds in wallet: " + from.getName());
@@ -69,7 +67,8 @@ public class TransactionService {
 
     @Transactional(readOnly = true)
     public List<TransactionResponse> findByFilters(Long walletId, String category,
-            LocalDateTime start, LocalDateTime end) {
+            LocalDateTime start, LocalDateTime end, String userEmail) {
+        getOwnedWalletOrThrow(walletId, userEmail);
         List<Transaction> results;
         if (category != null && !category.isBlank()) {
             results = transactionRepository.findByWalletIdAndCategory(walletId, category);
@@ -79,6 +78,26 @@ public class TransactionService {
             results = transactionRepository.findByWalletId(walletId);
         }
         return results.stream().map(this::toResponse).toList();
+    }
+
+    @Transactional
+    public TransactionResponse move(MoveTransactionRequest request, String userEmail) {
+        Transaction transaction = getOwnedTransactionOrThrow(request.transactionId(), userEmail);
+        Wallet sourceWallet = transaction.getWallet();
+        Wallet targetWallet = getOwnedWalletOrThrow(request.targetWalletId(), userEmail);
+
+        if (sourceWallet.getId().equals(targetWallet.getId())) {
+            return toResponse(transaction);
+        }
+
+        revertBalance(sourceWallet, transaction.getAmount(), transaction.getType());
+        applyBalance(targetWallet, transaction.getAmount(), transaction.getType());
+
+        transaction.setWallet(targetWallet);
+
+        walletRepository.save(sourceWallet);
+        walletRepository.save(targetWallet);
+        return toResponse(transactionRepository.save(transaction));
     }
 
     private void applyBalance(Wallet wallet, BigDecimal amount, TransactionType type) {
@@ -98,6 +117,32 @@ public class TransactionService {
         } catch (IllegalArgumentException e) {
             throw new IllegalArgumentException("Invalid transaction type: " + type);
         }
+    }
+
+    private Wallet getOwnedWalletOrThrow(Long walletId, String userEmail) {
+        Wallet wallet = walletRepository.findById(walletId)
+                .orElseThrow(() -> new ResourceNotFoundException("Wallet not found: " + walletId));
+        if (!wallet.getUser().getEmail().equals(userEmail)) {
+            throw new ResourceNotFoundException("Wallet not found: " + walletId);
+        }
+        return wallet;
+    }
+
+    private Transaction getOwnedTransactionOrThrow(Long transactionId, String userEmail) {
+        Transaction transaction = transactionRepository.findById(transactionId)
+                .orElseThrow(() -> new ResourceNotFoundException("Transaction not found: " + transactionId));
+        if (!transaction.getWallet().getUser().getEmail().equals(userEmail)) {
+            throw new ResourceNotFoundException("Transaction not found: " + transactionId);
+        }
+        return transaction;
+    }
+
+    private void revertBalance(Wallet wallet, BigDecimal amount, TransactionType type) {
+        if (type == TransactionType.INCOME) {
+            wallet.setBalance(wallet.getBalance().subtract(amount));
+            return;
+        }
+        wallet.setBalance(wallet.getBalance().add(amount));
     }
 
     private TransactionResponse toResponse(Transaction t) {
