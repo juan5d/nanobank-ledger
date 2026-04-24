@@ -66,6 +66,14 @@
           </div>
         }
 
+        <!-- Alerta de error -->
+        @if (errorMessage()) {
+          <div class="alert-error">
+            <span>⚠ {{ errorMessage() }}</span>
+            <button class="alert-close" (click)="dismissError()">✕</button>
+          </div>
+        }
+
         <!-- Filtros -->
         <div class="filters">
           <input type="text" placeholder="Filtrar por categoría..." [value]="categoryFilter()"

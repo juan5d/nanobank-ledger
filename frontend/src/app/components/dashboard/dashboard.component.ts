@@ -1,6 +1,7 @@
 import { Component, OnInit, signal, computed, inject, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { HttpErrorResponse } from '@angular/common/http';
 import { CdkDragDrop, DragDropModule } from '@angular/cdk/drag-drop';
 import { Wallet } from '../../models/wallet.model';
 import { Transaction, TransactionRequest } from '../../models/transaction.model';
@@ -32,6 +33,7 @@ export class DashboardComponent implements OnInit {
   showNewWallet = signal<boolean>(false);
   showNewTransaction = signal<boolean>(false);
   newWalletName = signal<string>('');
+  errorMessage = signal<string>('');
 
   newTransaction: TransactionRequest = { description: '', amount: 0, type: 'INCOME', category: '', walletId: 0 };
 
@@ -71,10 +73,13 @@ export class DashboardComponent implements OnInit {
   createWallet(): void {
     const name = this.newWalletName().trim();
     if (!name) return;
-    this.walletService.create({ name }).subscribe(() => {
-      this.newWalletName.set('');
-      this.showNewWallet.set(false);
-      this.loadWallets();
+    this.walletService.create({ name }).subscribe({
+      next: () => {
+        this.newWalletName.set('');
+        this.showNewWallet.set(false);
+        this.loadWallets();
+      },
+      error: (err: HttpErrorResponse) => this.showError(err)
     });
   }
 
@@ -82,11 +87,14 @@ export class DashboardComponent implements OnInit {
     const wallet = this.selectedWallet();
     if (!wallet) return;
     const req: TransactionRequest = { ...this.newTransaction, walletId: wallet.id };
-    this.transactionService.create(req).subscribe(() => {
-      this.showNewTransaction.set(false);
-      this.newTransaction = { description: '', amount: 0, type: 'INCOME', category: '', walletId: 0 };
-      this.loadWallets();
-      this.loadTransactions(wallet.id);
+    this.transactionService.create(req).subscribe({
+      next: () => {
+        this.showNewTransaction.set(false);
+        this.newTransaction = { description: '', amount: 0, type: 'INCOME', category: '', walletId: 0 };
+        this.loadWallets();
+        this.loadTransactions(wallet.id);
+      },
+      error: (err: HttpErrorResponse) => this.showError(err)
     });
   }
 
@@ -97,10 +105,13 @@ export class DashboardComponent implements OnInit {
     this.transactionService.move({
       transactionId: transaction.id,
       targetWalletId: targetWallet.id
-    }).subscribe(() => {
-      this.loadWallets();
-      const sel = this.selectedWallet();
-      if (sel) this.loadTransactions(sel.id);
+    }).subscribe({
+      next: () => {
+        this.loadWallets();
+        const sel = this.selectedWallet();
+        if (sel) this.loadTransactions(sel.id);
+      },
+      error: (err: HttpErrorResponse) => this.showError(err)
     });
   }
 
@@ -111,6 +122,41 @@ export class DashboardComponent implements OnInit {
 
   logout(): void {
     this.authService.logout();
+  }
+
+  dismissError(): void {
+    this.errorMessage.set('');
+  }
+
+  private showError(err: HttpErrorResponse): void {
+    const mensajes: Record<number, string> = {
+      422: 'Saldo insuficiente en la billetera para cubrir este gasto.',
+      404: 'No se encontró el recurso solicitado.',
+      400: 'Datos inválidos. Verifica los campos del formulario.',
+      401: 'Sesión expirada. Por favor inicia sesión nuevamente.',
+    };
+    const mensaje = err.error?.message
+      ? this.traducirMensaje(err.error.message)
+      : (mensajes[err.status] ?? 'Ocurrió un error inesperado. Intenta de nuevo.');
+
+    this.errorMessage.set(mensaje);
+    setTimeout(() => this.errorMessage.set(''), 5000);
+  }
+
+  private traducirMensaje(backendMessage: string): string {
+    if (backendMessage.toLowerCase().includes('insufficient funds')) {
+      return 'Saldo insuficiente en la billetera para cubrir este gasto.';
+    }
+    if (backendMessage.toLowerCase().includes('wallet not found')) {
+      return 'La billetera indicada no existe o no te pertenece.';
+    }
+    if (backendMessage.toLowerCase().includes('transaction not found')) {
+      return 'El movimiento indicado no existe o no te pertenece.';
+    }
+    if (backendMessage.toLowerCase().includes('invalid credentials')) {
+      return 'Credenciales inválidas.';
+    }
+    return backendMessage;
   }
 
   getWalletConnections(): string[] {
