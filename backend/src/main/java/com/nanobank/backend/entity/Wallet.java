@@ -15,9 +15,12 @@ public class Wallet {
     private Long id;
 
     @Column(nullable = false)
+    private String name;
+
+    @Column(nullable = false)
     private BigDecimal balance = BigDecimal.ZERO;
 
-    @OneToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
@@ -25,9 +28,11 @@ public class Wallet {
     private List<Transaction> transactions = new ArrayList<>();
 
     // Constructors
-    public Wallet() {}
+    public Wallet() {
+    }
 
-    public Wallet(User user) {
+    public Wallet(String name, User user) {
+        this.name = name;
         this.user = user;
         this.balance = BigDecimal.ZERO;
     }
@@ -39,6 +44,14 @@ public class Wallet {
 
     public void setId(Long id) {
         this.id = id;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
     }
 
     public BigDecimal getBalance() {
@@ -68,8 +81,10 @@ public class Wallet {
     // equals and hashCode
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o)
+            return true;
+        if (o == null || getClass() != o.getClass())
+            return false;
         Wallet wallet = (Wallet) o;
         return Objects.equals(id, wallet.id);
     }
@@ -84,6 +99,7 @@ public class Wallet {
     public String toString() {
         return "Wallet{" +
                 "id=" + id +
+                ", name='" + name + '\'' +
                 ", balance=" + balance +
                 ", user=" + (user != null ? user.getId() : null) +
                 '}';

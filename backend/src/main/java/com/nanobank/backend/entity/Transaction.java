@@ -26,6 +26,9 @@ public class Transaction {
     @Column
     private String description;
 
+    @Column
+    private String category;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "wallet_id", nullable = false)
     private Wallet wallet;
@@ -39,6 +42,11 @@ public class Transaction {
         this.description = description;
         this.wallet = wallet;
         this.timestamp = LocalDateTime.now();
+    }
+
+    public Transaction(BigDecimal amount, TransactionType type, String description, String category, Wallet wallet) {
+        this(amount, type, description, wallet);
+        this.category = category;
     }
 
     // Getters and Setters
@@ -81,6 +89,9 @@ public class Transaction {
     public void setDescription(String description) {
         this.description = description;
     }
+
+    public String getCategory() { return category; }
+    public void setCategory(String category) { this.category = category; }
 
     public Wallet getWallet() {
         return wallet;
