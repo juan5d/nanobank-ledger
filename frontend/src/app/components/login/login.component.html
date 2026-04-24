@@ -1,0 +1,47 @@
+<div class="login-container">
+  <div class="login-card">
+    <h1 class="logo">NanoBank Ledger</h1>
+    <h2>{{ mode() === 'login' ? 'Iniciar Sesión' : 'Crear Cuenta' }}</h2>
+
+    <form (ngSubmit)="submit()" #form="ngForm">
+      @if (mode() === 'register') {
+        <div class="field">
+          <label>Usuario</label>
+          <input type="text" [(ngModel)]="registerForm.username" name="username" required />
+        </div>
+        <div class="field">
+          <label>Correo electrónico</label>
+          <input type="email" [(ngModel)]="registerForm.email" name="regEmail" required />
+        </div>
+        <div class="field">
+          <label>Contraseña</label>
+          <input type="password" [(ngModel)]="registerForm.password" name="regPassword" required minlength="6" />
+        </div>
+      } @else {
+        <div class="field">
+          <label>Correo electrónico</label>
+          <input type="email" [(ngModel)]="loginForm.email" name="email" required />
+        </div>
+        <div class="field">
+          <label>Contraseña</label>
+          <input type="password" [(ngModel)]="loginForm.password" name="password" required />
+        </div>
+      }
+
+      @if (error()) {
+        <p class="error">{{ error() }}</p>
+      }
+
+      <button type="submit" [disabled]="loading()" class="btn-primary">
+        {{ loading() ? 'Cargando...' : (mode() === 'login' ? 'Iniciar Sesión' : 'Registrarse') }}
+      </button>
+    </form>
+
+    <p class="toggle">
+      {{ mode() === 'login' ? '¿No tienes una cuenta?' : '¿Ya estás registrado?' }}
+      <button type="button" (click)="toggleMode()" class="btn-link">
+        {{ mode() === 'login' ? 'Regístrate' : 'Inicia Sesión' }}
+      </button>
+    </p>
+  </div>
+</div>

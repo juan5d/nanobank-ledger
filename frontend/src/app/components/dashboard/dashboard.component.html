@@ -1,0 +1,119 @@
+<div class="app-shell">
+  <header class="topbar">
+    <span class="brand">NanoBank Ledger</span>
+    <button class="btn-ghost" (click)="logout()">Cerrar Sesión</button>
+  </header>
+
+  <div class="content">
+    <!-- Barra lateral: Billeteras -->
+    <aside class="sidebar">
+      <div class="section-header">
+        <h3>Billeteras</h3>
+        <button class="btn-icon" (click)="showNewWallet.set(!showNewWallet())" title="Nueva billetera">+</button>
+      </div>
+
+      @if (showNewWallet()) {
+        <div class="inline-form">
+          <input type="text" placeholder="Nombre de billetera" [value]="newWalletName()"
+            (input)="newWalletName.set($any($event.target).value)" (keyup.enter)="createWallet()" />
+          <button class="btn-sm" (click)="createWallet()">Agregar</button>
+        </div>
+      }
+
+      <ul class="wallet-list">
+        @for (wallet of wallets(); track wallet.id) {
+          <li
+            class="wallet-item"
+            [class.active]="selectedWallet()?.id === wallet.id"
+            (click)="selectWallet(wallet)"
+            cdkDropList
+            [id]="'wallet-' + wallet.id"
+            [cdkDropListData]="transactions()"
+            [cdkDropListConnectedTo]="walletIds()"
+            (cdkDropListDropped)="onTransactionDrop($event, wallet)">
+            <div class="wallet-name">{{ wallet.name }}</div>
+            <div class="wallet-balance" [class.negative]="wallet.balance < 0">
+              ${{ wallet.balance | number:'1.2-2' }}
+            </div>
+          </li>
+        }
+      </ul>
+    </aside>
+
+    <!-- Panel principal: Movimientos -->
+    <main class="main-panel">
+      @if (selectedWallet(); as wallet) {
+        <div class="panel-header">
+          <h2>{{ wallet.name }}</h2>
+          <button class="btn-primary" (click)="showNewTransaction.set(!showNewTransaction())">
+            + Movimiento
+          </button>
+        </div>
+
+        @if (showNewTransaction()) {
+          <div class="form-card">
+            <div class="form-row">
+              <input type="text" placeholder="Descripción" [(ngModel)]="newTransaction.description" />
+              <input type="number" placeholder="Monto" [(ngModel)]="newTransaction.amount" min="0.01" />
+              <input type="text" placeholder="Categoría" [(ngModel)]="newTransaction.category" />
+              <select [(ngModel)]="newTransaction.type">
+                <option value="INCOME">Ingreso</option>
+                <option value="EXPENSE">Gasto</option>
+              </select>
+              <button class="btn-primary" (click)="createTransaction()">Guardar</button>
+              <button class="btn-ghost" (click)="showNewTransaction.set(false)">Cancelar</button>
+            </div>
+          </div>
+        }
+
+        <!-- Alerta de error -->
+        @if (errorMessage()) {
+          <div class="alert-error">
+            <span>⚠ {{ errorMessage() }}</span>
+            <button class="alert-close" (click)="dismissError()">✕</button>
+          </div>
+        }
+
+        <!-- Filtros -->
+        <div class="filters">
+          <input type="text" placeholder="Filtrar por categoría..." [value]="categoryFilter()"
+            (input)="categoryFilter.set($any($event.target).value)" />
+          <input type="datetime-local" [value]="startDate()"
+            (change)="startDate.set($any($event.target).value)" />
+          <input type="datetime-local" [value]="endDate()"
+            (change)="endDate.set($any($event.target).value)" />
+          <button class="btn-sm" (click)="applyDateFilter()">Aplicar</button>
+        </div>
+
+        <!-- Lista de movimientos (arrastrable) -->
+        <div class="transactions"
+          cdkDropList
+          [id]="'wallet-' + wallet.id + '-list'"
+          [cdkDropListData]="filteredTransactions()"
+          [cdkDropListConnectedTo]="walletIds()">
+          @for (tx of filteredTransactions(); track tx.id) {
+            <div class="tx-card" cdkDrag [cdkDragData]="tx">
+              <div class="tx-drag-handle" cdkDragHandle>::</div>
+              <div class="tx-info">
+                <span class="tx-desc">{{ tx.description || '—' }}</span>
+                <span class="tx-cat">{{ tx.category }}</span>
+                <span class="tx-date">{{ tx.date | date:'short' }}</span>
+              </div>
+              <div class="tx-amount" [class.income]="tx.type === 'INCOME'" [class.expense]="tx.type === 'EXPENSE'">
+                {{ tx.type === 'INCOME' ? '+' : '-' }}${{ tx.amount | number:'1.2-2' }}
+              </div>
+            </div>
+          }
+
+          @if (filteredTransactions().length === 0) {
+            <p class="empty">No se encontraron movimientos.</p>
+          }
+        </div>
+      } @else {
+        <div class="empty-state">
+          <p>Selecciona o crea una billetera para comenzar.</p>
+        </div>
+      }
+    </main>
+  </div>
+</div>
